@@ -1,4 +1,4 @@
-name: Publish npm package
+name: Legacy npm publication disabled
 
 on:
   workflow_dispatch:
@@ -15,12 +15,10 @@ concurrency:
 
 jobs:
   publish:
-    if: github.repository == 'AISlop-Inc/provider-usage' && github.ref == 'refs/heads/main'
+    if: ${{ false }}
     runs-on: ubuntu-latest
-    environment: npm-publish
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v7
         with:

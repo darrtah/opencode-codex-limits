@@ -1,0 +1,28 @@
+name: Ошибка
+description: Сообщить об ошибке счётчика Codex
+body:
+  - type: markdown
+    attributes:
+      value: Не прикладывайте токены, коды входа, auth.json, базы данных или необработанные приватные журналы. Уязвимости — по SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Версия плагина и OpenCode
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: ОС, тариф и способ входа (без секретов)
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Ожидаемый и фактический результат
+    validations:
+      required: true

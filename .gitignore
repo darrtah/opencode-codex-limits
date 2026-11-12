@@ -1,2 +1,19 @@
 node_modules/
 *.tgz
+dist/
+.npm-cache/
+.env
+.env.*
+!.env.example
+*.log
+*.db
+*.db-*
+auth.json
+.codex/
+coverage/
+# One-off migration helpers; not part of the release sources.
+/patch-*.cjs
+/fix-*.cjs
+/translate-russian.cjs
+/cleanup-codex.cjs
+/test-display.mjs

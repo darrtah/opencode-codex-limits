@@ -1,13 +1,25 @@
 {
-  "name": "@aislop-inc/opencode-provider-usage",
-  "version": "0.1.1",
+  "name": "opencode-codex-limits-desktop",
+  "version": "0.1.0",
+  "description": "Russian-language Codex quota meter for OpenCode Desktop: reset times, account-aware caching and stale-data warnings.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/darrtah/opencode-codex-limits.git"
+  },
+  "homepage": "https://github.com/darrtah/opencode-codex-limits#readme",
+  "bugs": {
+    "url": "https://github.com/darrtah/opencode-codex-limits/issues"
+  },
+  "private": true,
   "type": "module",
   "publishConfig": {
     "access": "public"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AISlop-Inc/provider-usage.git"
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check gui-experimental.cjs && node scripts/check-package.cjs",
+    "scan": "node scripts/scan-secrets.mjs"
   },
   "exports": {
     ".": "./server.ts",
@@ -17,7 +29,14 @@
   },
   "files": [
     "server.ts",
-    "src/",
+    "src/entry.ts",
+    "src/contract.ts",
+    "src/rpc.ts",
+    "src/quota-core.mjs",
+    "README.md",
+    "LICENSE",
+    "NOTICE.md",
+    "SECURITY.md",
     "gui-experimental.cjs"
   ],
   "license": "MIT",
@@ -25,6 +44,8 @@
     "@opencode/plugin": "2.2.5"
   },
   "devDependencies": {
-    "solid-js": "^1.9.10"
+    "solid-js": "1.9.19",
+    "vite": "7.3.8",
+    "vite-plugin-solid": "2.11.10"
   }
 }

@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js"
 import { Command, MenuItem, Panel, Plugin, Slot, Style, type PanelTab } from "@opencode/plugin/gui"
 import { Usage } from "./rpc"
+import { selectMeters, meterTitle } from "./display-logic.mjs"
 
 type Meter = {
   id: string
@@ -8,6 +9,7 @@ type Meter = {
   usedPercent: number
   resetsAt?: number
   limited?: boolean
+  windowSeconds?: number
 }
 
 type ProviderUsage = {
@@ -15,6 +17,8 @@ type ProviderUsage = {
   name: string
   state: "ready" | "signed-out" | "unavailable"
   detail?: string
+  stale?: boolean
+  lastSuccess?: number
   meters: Meter[]
 }
 
@@ -41,6 +45,8 @@ const css = `
 .provider-usage-header { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--v2-text-text-muted); font-size: 13px; line-height: var(--line-height-compact); white-space: nowrap; }
 .provider-usage-header button { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; padding: 0; }
 .provider-usage-header .meter { display: inline-flex; align-items: center; gap: 4px; }
+.provider-usage-header .meter-text { display: inline-flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+.provider-usage-header .meter-reset { font-size: 10px; opacity: .75; }
 .provider-usage-header svg { width: 16px; height: 16px; flex: none; transform: rotate(-90deg); }
 .provider-usage-header .track { fill: none; stroke: currentColor; opacity: .2; }
 .provider-usage-header .progress { fill: none; stroke: currentColor; }
@@ -51,14 +57,15 @@ const css = `
 
 export default Plugin.define({
   i18n: {
-    en: { "panel.title": "Provider usage", "command.open": "Show provider usage" },
-    ja: { "panel.title": "プロバイダ使用量", "command.open": "プロバイダ使用量を表示" },
+    en: { "panel.title": "Лимиты Codex", "command.open": "Показать лимиты Codex" },
+    ru: { "panel.title": "Лимиты Codex", "command.open": "Показать лимиты Codex" },
   },
   setup(ctx) {
     const [snapshot, setSnapshot] = createSignal<Snapshot>()
     const [error, setError] = createSignal<string>()
     const [mode, setMode] = createSignal<DisplayMode>(loadMode())
     let refreshing = false
+    let disposed = false
 
     const toggleMode = () => {
       const next = mode() === "used" ? "remaining" : "used"
@@ -74,10 +81,12 @@ export default Plugin.define({
       if (refreshing) return
       refreshing = true
       try {
-        setSnapshot(await ctx.client.rpc(Usage).snapshot({ fresh }))
+        const result = await ctx.client.rpc(Usage).snapshot({ fresh })
+        if (disposed) return
+        setSnapshot(result)
         setError()
       } catch (cause) {
-        setError(errorMessage(cause))
+        if (!disposed) setError("Не удалось обновить данные; повторная попытка через 30 секунд")
       } finally {
         refreshing = false
       }
@@ -144,6 +153,7 @@ export default Plugin.define({
           compact={() => input.compact}
           open={() => ctx.layout.open(`${ctx.id}:main`, input.session, { tab: "select" })}
           snapshot={snapshot}
+          error={error}
           mode={mode}
         />
       ),
@@ -151,8 +161,8 @@ export default Plugin.define({
 
     ctx.add(Style, css)
     void refresh(false)
-    const timer = setInterval(() => void refresh(false), 300_000)
-    return () => clearInterval(timer)
+    const timer = setInterval(() => void refresh(false), 30_000)
+    return () => { disposed = true; clearInterval(timer) }
   },
 })
 
@@ -161,25 +171,26 @@ function HeaderUsage(props: {
   compact: () => boolean
   open: () => void
   snapshot: () => Snapshot | undefined
+  error: () => string | undefined
   mode: () => DisplayMode
 }) {
   const shown = () => {
-    const rows = headerRows(props.snapshot()?.providers ?? [])
+    const rows = headerRows(props.snapshot()?.providers ?? []).map((row) => ({ ...row, stale: row.stale || !!props.error() }))
     return props.compact() ? rows.slice(0, 1) : rows
   }
   return (
     <div class="provider-usage-header" style={{ display: props.active() ? "flex" : "none" }}>
       <button type="button" title={modeTitle(props.mode())} onClick={() => props.open()}>
         {shown().length === 0 ? (
-          <span>{props.mode() === "remaining" ? "残量" : "使用量"}</span>
+          <span title={props.error() || props.snapshot()?.providers[0]?.detail || "Нет данных лимитов"}>Codex: нет данных</span>
         ) : (
           shown().map((row) => (
-            <span class={`meter ${percentClass(row.usedPercent, props.mode())}`} title={`${row.name}・${row.label} ${modeLabel(props.mode())} ${Math.round(shownPercent(row.usedPercent, props.mode()))}%`}>
+            <span class={`meter ${row.stale ? "warn" : percentClass(row.usedPercent, "remaining")}`} title={(row.other ? `${meterTitle(row.other, row.stale)}\nСброс: ${formatReset(row.other.resetsAt)}` : "Других лимитов нет или данные недоступны") + (row.stale ? "\n! Не удалось обновить; показаны последние данные" : "")}>
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <circle class="track" cx="10" cy="10" r="8" stroke-width="3" />
-                <circle class="progress" cx="10" cy="10" r="8" stroke-width="3" pathLength="100" stroke-dasharray={`${shownPercent(row.usedPercent, props.mode())} 100`} />
+                <circle class="progress" cx="10" cy="10" r="8" stroke-width="3" pathLength="100" stroke-dasharray={`${shownPercent(row.usedPercent, "remaining")} 100`} />
               </svg>
-              {row.name}
+              <span class="meter-text"><span>{meterTitle(row, row.stale)}</span><span class="meter-reset">{formatReset(row.resetsAt)}</span></span>
             </span>
           ))
         )}
@@ -198,22 +209,22 @@ function UsageView(props: {
   return (
     <div class="provider-usage">
       <header>
-        <h2>ログイン中の使用量</h2>
+        <h2>Лимиты Codex</h2>
         <div class="actions">
-          <button type="button" title="残量と使用量を切り替え" onClick={() => props.toggle()}>
-            {modeLabel(props.mode)}
+          <button type="button" title="Переключить остаток и расход" onClick={() => props.toggle()}>
+            {props.mode === "remaining" ? "Показать использованное" : "Показать остаток"}
           </button>
           <button type="button" onClick={() => props.refresh()}>
-            更新
+            Обновить
           </button>
         </div>
       </header>
-      <p class="detail">{props.error ?? "OpenCode Go / Claude / xAI / Codex"}</p>
+      <p class="detail">{props.error ?? "Codex"}</p>
       {(props.snapshot?.providers ?? []).map((provider) => (
         <section>
           <div class="name">
             <strong>{provider.name}</strong>
-            <span class="detail">{status(provider)}</span>
+            <span class="detail">{provider.stale ? "! Последние данные: обновление не удалось" : status(provider)}</span>
           </div>
           {provider.meters.map((meter) => (
             <div>
@@ -236,30 +247,24 @@ function UsageView(props: {
   )
 }
 
-function errorMessage(cause: unknown) {
-  if (cause instanceof Error) return cause.message
-  if (cause && typeof cause === "object" && "message" in cause && typeof cause.message === "string") return cause.message
-  return "使用量を取得できなかった"
-}
-
 function status(provider: ProviderUsage) {
-  if (provider.state === "signed-out") return "未ログイン"
-  if (provider.state === "unavailable") return provider.detail ?? "取得できない"
-  return provider.detail ?? "ログイン中"
+  if (provider.state === "signed-out") return "Не подключён"
+  if (provider.state === "unavailable") return provider.detail ?? "Данные недоступны"
+  return provider.detail ?? "Подключён"
 }
 
 function resetLabel(resetsAt: number | undefined) {
   if (!resetsAt) return ""
-  if (resetsAt <= Date.now()) return "リセット済み"
+  if (resetsAt <= Date.now()) return "Сброшено"
   const when = new Date(resetsAt)
-  const formatted = new Intl.DateTimeFormat("ja-JP", {
+  const formatted = new Intl.DateTimeFormat("ru-RU", {
     year: when.getFullYear() === new Date().getFullYear() ? undefined : "numeric",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
   }).format(when)
-  return `${formatted} にリセット`
+  return `${formatted} — сброс`
 }
 
 function fillClass(usedPercent: number, mode: DisplayMode) {
@@ -269,16 +274,15 @@ function fillClass(usedPercent: number, mode: DisplayMode) {
 
 function headerRows(providers: ProviderUsage[]) {
   return providers.flatMap((provider) => {
-    const meter = provider.meters.slice().sort((left, right) => right.usedPercent - left.usedPercent)[0]
+    const { selected: meter, other } = selectMeters(provider.meters)
     if (!meter) return []
-    return [{ name: shortName(provider.id), label: meter.label, usedPercent: meter.usedPercent }]
+    return [{ name: "Codex", label: meter.label, usedPercent: meter.usedPercent, resetsAt: meter.resetsAt, stale: provider.stale, lastSuccess: provider.lastSuccess, other }]
   })
 }
 
-function shortName(id: string) {
-  if (id === "opencode") return "Go"
-  if (id === "openai") return "Codex"
-  return id === "claude" ? "Claude" : "xAI"
+function formatReset(value: number | undefined) {
+  if (!value || !Number.isFinite(value)) return "неизвестно"
+  return new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(value))
 }
 
 function loadMode(): DisplayMode {
@@ -296,15 +300,15 @@ function shownPercent(usedPercent: number, mode: DisplayMode) {
 
 function percentText(usedPercent: number, mode: DisplayMode) {
   const value = Math.round(shownPercent(usedPercent, mode))
-  return mode === "remaining" ? `残${value}%` : `${value}%`
+  return mode === "remaining" ? `Осталось ${value}%` : `Использовано ${value}%`
 }
 
 function modeLabel(mode: DisplayMode) {
-  return mode === "remaining" ? "残量" : "使用量"
+  return mode === "remaining" ? "Осталось" : "Использовано"
 }
 
 function modeTitle(mode: DisplayMode) {
-  return mode === "remaining" ? "プロバイダ残量" : "プロバイダ使用量"
+  return mode === "remaining" ? "Остаток лимитов" : "Лимиты провайдеров"
 }
 
 function percentClass(usedPercent: number, mode: DisplayMode) {

@@ -1,49 +1,92 @@
-> AISlop-Inc npm package: `@aislop-inc/opencode-provider-usage`.
-> Manual release instructions: [npm publishing](docs/NPM-PUBLISHING.md).
+# Codex Limits for OpenCode Desktop
 
-# OpenCode Provider Usage
+Русскоязычный индикатор квоты **Codex** в OpenCode Desktop. Независимая адаптация кода [AISlop-Inc/provider-usage](https://github.com/AISlop-Inc/provider-usage), не связанная с OpenAI или разработчиками OpenCode. История и лицензия оригинала сохранены; на GitHub это отдельный репозиторий, а не форк в общей сети репозиториев.
 
-An experimental OpenCode desktop plugin that shows subscription usage for OpenCode Go, Codex, Claude, and xAI in the session header and a detail panel.
+Репозиторий этой адаптации: [darrtah/opencode-codex-limits](https://github.com/darrtah/opencode-codex-limits). До публичного выпуска ссылка доступна только пользователям с разрешением на приватный репозиторий.
 
-- Header rings show the most-used available limit for each provider; hover for the period and percentage.
-- Switch between remaining and used percentages in the detail panel, which also shows reset times when available.
-- Usage is cached for five minutes and refreshed automatically; use the refresh button to fetch it immediately.
+## Возможности
 
-## Installation
+- В заголовке сессии: остаток пятичасового лимита и ниже дата/время сброса.
+- При наведении: другой доступный период (обычно неделя), остаток и дата сброса.
+- Если пятичасового окна нет, показывается первый доступный период с настоящим названием.
+- Подробная панель: кнопки «Показать остаток» / «Показать использованное» и ручное обновление.
+- Время — в часовом поясе вашего компьютера. «Сброс» означает восстановление квоты, а не время последнего запроса.
+- При ошибке сохраняются последние полученные значения с `!`, например **5ч: ! 60%**. Успешное обновление убирает предупреждение.
+- Кэш отдельно для каждого сохранённого аккаунта OpenCode, только в памяти; после перезагрузки очищается.
+- Проверка интерфейсом каждые 30 секунд; запрос к OpenAI обычно раз в 5 минут, после ошибки — примерно через 30 секунд. Тайм-аут запроса — 12 секунд; интервалы не гарантируют точного времени при сетевых задержках или приостановке приложения.
 
-Clone this repository and add its absolute directory path to the `plugins` array in your OpenCode configuration, preserving existing entries.
-For example, after cloning into `~/.config/opencode/plugins/provider-usage`, add the full path to `~/.config/opencode/opencode.json`.
-The included `gui-experimental.cjs` is the GUI bundle; do not install a separate copy of the OpenCode plugin SDK or Effect into this directory.
+## Совместимость
+
+Проверено локально на **OpenCode Desktop 2.2.7, Windows** и аккаунте Plus, подключённом через **Codex device code (legacy)**. Другие ОС и тарифы не проверены на реальных аккаунтах. Варианты ответа без пятичасового окна покрыты синтетическими тестами, это не гарантия поддержки каждого тарифа.
+
+Это плагин **Desktop**, не виджет TUI. Требуется экспериментальный GUI API OpenCode V2. Обновления OpenCode или неофициального endpoint OpenAI могут нарушить работу.
+
+**Go, Claude и xAI не поддерживаются** в этой версии. Кредиты и общий лимит сообщений ChatGPT не отображаются. Если численные окна не предоставлены, интерфейс пишет «нет данных», а не «безлимит» или «100%».
+
+## Подключение аккаунта
+
+В OpenCode откройте подключение OpenAI и выберите **Codex device code (legacy)**. Подтвердите вход самостоятельно на странице OpenAI. Новый способ **Sign in with ChatGPT** может не предоставлять идентификатор аккаунта для службы квот; поддержка не гарантируется.
+
+Плагин использует **только активный сохранённый аккаунт OpenAI в OpenCode**. Он не переключает аккаунты, не открывает вход и не использует аккаунт Codex Desktop. После переключения аккаунта нажмите «Обновить»; до очередной проверки интерфейс может ещё показывать предыдущий результат.
+
+## Установка из исходников / локального клона
+
+После размещения репозитория можно установить зафиксированную версию непосредственно через Git:
+
+```sh
+opencode plugin add 'git+https://github.com/darrtah/opencode-codex-limits.git#v0.1.0'
+```
+
+Тег `v0.1.0` должен быть создан при выпуске. Для приватного репозитория процессу OpenCode нужен доступ через Git-авторизацию вашего компьютера; авторизации в браузере недостаточно. Токен нельзя вставлять в URL или конфигурацию. Перед подключением уберите старую локальную запись плагина, сохранив её путь для отката.
+
+1. Скачайте или клонируйте **этот форк** в отдельную постоянную папку. Готовый `gui-experimental.cjs` включён в репозиторий, сборка пользователю не требуется.
+2. Добавьте абсолютный путь к папке в **глобальный** `~/.config/opencode/opencode.jsonc`, сохранив существующие настройки:
 
 ```jsonc
 {
-  "plugins": ["/absolute/path/to/provider-usage"]
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["D:/plugins/codex-limits"]
 }
 ```
 
-Requires an OpenCode version supporting the experimental GUI plugin and RPC APIs.
-The interface currently uses Japanese labels.
+Путь — пример; подставьте свою папку. На macOS/Linux укажите соответствующий абсолютный путь.
 
-## Authentication and privacy
+Не подключайте одновременно оригинал и форк: ради совместимости сохранены внутренний ID `provider-usage`, RPC и ключ локального режима отображения. В Settings → Extensions → Plugins должен остаться только один плагин с этим ID. Данные входа в конфигурацию плагина вставлять **не нужно**.
 
-The plugin uses the active OpenCode provider connections where available.
-It can also read Codex credentials from `~/.codex/auth.json` and Claude Code OAuth credentials from the macOS keychain or `~/.claude/.credentials.json`.
-It sends access tokens directly to the corresponding provider's usage endpoint; tokens are not displayed in the UI.
-Use this plugin only on a machine and account where you trust the OpenCode server.
+OpenCode подхватывает конфигурацию автоматически; при необходимости выполните `/reload`. Панель открывается из списка боковых панелей или командой «Показать лимиты Codex».
 
-The usage endpoints and plugin APIs are unofficial or experimental and may change without notice.
-Provider access, subscription availability, and login expiry can affect which meters are shown.
+Для отключения уберите только запись этого плагина из `plugins`. Это не удаляет чаты, проекты и авторизацию. Не удаляйте папку, пока она указана в конфигурации.
 
-## License
+## Приватность
 
-[MIT](LICENSE)
+На вашем компьютере серверная часть получает OAuth-токен активного подключения OpenCode и отправляет его **только** в `https://chatgpt.com/backend-api/wham/usage`. HTTP-перенаправления запрещены. Проверка — GET-запрос информации, а не генерация ответа моделью; мы не гарантируем правила учёта запросов OpenAI.
 
-## npm installation
+Плагин не читает `.codex/auth.json`, хранилище Claude или файлы проекта. Не сохраняет токены, не ведёт журналов токенов и не отправляет телеметрию. В GUI передаются только периоды, проценты, время сброса, статус и краткое название тарифа. В localStorage хранится только выбор «остаток/использовано».
 
-After the first npm publication, add this entry to the existing OpenCode plugins array:
+Плагины работают с широкими правами процесса OpenCode: устанавливайте только доверенные версии. Это описание поведения проверенного исходного кода, а не независимый аудит безопасности. См. [SECURITY.md](SECURITY.md).
 
-```json
-{"plugins": ["@aislop-inc/opencode-provider-usage@latest"]}
+## Разработка
+
+Node.js 24+, npm. Установка зависимостей без lifecycle-скриптов:
+
+```sh
+npm ci --ignore-scripts
+npm test
+npm run build
+npm run check
+npm run scan
 ```
 
-Do not add it alongside a local copy of the same plugin.
+`npm run build` создаёт GUI из `src/gui.tsx` через штатный preset OpenCode. Не редактируйте собранный файл вручную. После сборки коммитьте исходники **и** `gui-experimental.cjs`.
+
+Сканер проверяет типовые секреты и личные пути в рабочих файлах и всех достижимых Git-блобах; он не заменяет аудит. Тесты не требуют аккаунта и не делают запросов к OpenAI.
+
+## Статус публикации
+
+Подготовлена версия **0.1.0** для `darrtah/opencode-codex-limits`: сначала приватная проверка установки, затем отдельное решение о публичном доступе. Ничего автоматически не публикуется. npm-публикация заблокирована `private: true`, старый workflow оригинала отключён. План выпуска: [docs/RELEASE.md](docs/RELEASE.md). Проведённые проверки и оставшиеся предупреждения зависимостей: [docs/VALIDATION.md](docs/VALIDATION.md).
+
+## Лицензия и авторство
+
+[MIT](LICENSE). Оригинальное уведомление AISlop Inc сохранено. Отличия форка описаны в [NOTICE.md](NOTICE.md) и [CHANGELOG.md](CHANGELOG.md).
+
+Предложения и исправления приветствуются: [CONTRIBUTING.md](CONTRIBUTING.md).
