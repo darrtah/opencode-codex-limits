@@ -1,6 +1,6 @@
 {
   "name": "opencode-codex-limits-desktop",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Russian-language Codex quota meter for OpenCode Desktop: reset times, account-aware caching and stale-data warnings.",
   "repository": {
     "type": "git",
@@ -16,7 +16,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
+    "bundle": "node scripts/build.mjs",
     "test": "node --test test/*.test.mjs",
     "check": "node --check gui-experimental.cjs && node scripts/check-package.cjs",
     "scan": "node scripts/scan-secrets.mjs"

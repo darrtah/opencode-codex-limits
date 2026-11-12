@@ -9,7 +9,7 @@
 ```sh
 npm ci --ignore-scripts
 npm test
-npm run build
+npm run bundle
 npm run check
 npm run scan
 ```

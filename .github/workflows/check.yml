@@ -15,7 +15,7 @@ jobs:
           node-version: '24'
       - run: npm ci --ignore-scripts
       - run: npm test
-      - run: npm run build
+      - run: npm run bundle
       - run: npm run check
       - run: npm run scan
       - run: git diff --exit-code -- gui-experimental.cjs
