@@ -50,9 +50,9 @@ export function parseUsage(payload, now = Date.now()) {
 export function createQuotaCache() {
   const entries = new Map()
   return {
-    get(account, fresh = false, now = Date.now()) {
+    get(account, fresh = false, now = Date.now(), interval = NORMAL_INTERVAL) {
       const value = entries.get(account)
-      if (!value || fresh || now - value.checkedAt >= (value.retry ? RETRY_INTERVAL : NORMAL_INTERVAL)) return
+      if (!value || fresh || now - value.checkedAt >= (value.retry ? RETRY_INTERVAL : interval)) return
       return { checkedAt: value.checkedAt, providers: [value.provider] }
     },
     update(account, provider, now = Date.now()) {

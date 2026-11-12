@@ -1,6 +1,6 @@
 {
   "name": "opencode-codex-limits-desktop",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Russian-language Codex quota meter for OpenCode Desktop: reset times, account-aware caching and stale-data warnings.",
   "repository": {
     "type": "git",
@@ -33,6 +33,7 @@
     "src/contract.ts",
     "src/rpc.ts",
     "src/quota-core.mjs",
+    "src/preferences.mjs",
     "README.md",
     "LICENSE",
     "NOTICE.md",

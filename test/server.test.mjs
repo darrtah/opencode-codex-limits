@@ -9,6 +9,7 @@ let source = stripTypeScriptTypes(readFileSync(new URL('../src/entry.ts', import
 source = source.replace('import { Plugin } from "@opencode/plugin"', 'const Plugin = { define: (definition) => definition }')
 source = source.replace('import { Usage } from "./contract"', 'const Usage = {}')
 source = source.replace('"./quota-core.mjs"', JSON.stringify(new URL('../src/quota-core.mjs', import.meta.url).href))
+source = source.replace('"./preferences.mjs"', JSON.stringify(new URL('../src/preferences.mjs', import.meta.url).href))
 const { default: plugin } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'))
 
 function context() {

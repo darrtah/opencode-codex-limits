@@ -1,6 +1,7 @@
 import { Plugin } from "@opencode/plugin"
 import { Usage } from "./contract"
 import { createQuotaCache, parseUsage } from "./quota-core.mjs"
+import { validInterval } from "./preferences.mjs"
 
 type Meter = {
   id: string
@@ -33,14 +34,15 @@ export default Plugin.define({
     const registration = await ctx.rpc.register(Usage, {
       snapshot: async (input) => {
         const fresh = Boolean((input as { fresh?: boolean } | undefined)?.fresh)
+        const interval = validInterval((input as { interval?: number } | undefined)?.interval)
         const connection = await ctx.integration.connection.active("openai")
         const accountID = connection?.type === "credential" ? connection.id : undefined
         if (!accountID) return { checkedAt: Date.now(), providers: [signedOut("openai", "Codex")] }
-        const hit = cache.get(accountID, fresh)
+        const hit = cache.get(accountID, fresh, Date.now(), interval)
         if (hit) return hit
         // Avoid simultaneous polls from several Desktop windows in this runtime.
         if (pending) await pending
-        const secondHit = cache.get(accountID)
+        const secondHit = cache.get(accountID, false, Date.now(), interval)
         if (secondHit && !fresh) return secondHit
         const work = (async () => {
           let provider: ProviderUsage

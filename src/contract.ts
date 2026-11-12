@@ -35,7 +35,7 @@ export const Usage = Rpc.define({
     snapshot: {
       input: {
         type: "object",
-        properties: { fresh: { type: "boolean" } },
+        properties: { fresh: { type: "boolean" }, interval: { type: "number", enum: [30000, 60000, 120000, 300000, 600000] } },
         additionalProperties: false,
       },
       output: {

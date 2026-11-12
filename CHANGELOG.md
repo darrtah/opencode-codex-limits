@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- Russian / English language selector in the detail panel.
+- Persisted refresh interval: 30 seconds, 1, 2, 5 or 10 minutes. Error retry remains 30 seconds.
+- Additional preference/translation/cache tests (19 offline tests total).
+
 ## 0.1.1
 
 - Rename the development build command to `bundle` so OpenCode 2.2.7 can install the prebuilt plugin from a Git repository without npm Git-dependency preparation.

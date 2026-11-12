@@ -2,6 +2,7 @@ import { createSignal } from "solid-js"
 import { Command, MenuItem, Panel, Plugin, Slot, Style, type PanelTab } from "@opencode/plugin/gui"
 import { Usage } from "./rpc"
 import { selectMeters, meterTitle } from "./display-logic.mjs"
+import { translate, intervals, validInterval } from "./preferences.mjs"
 
 type Meter = {
   id: string
@@ -33,6 +34,8 @@ const css = `
 .provider-usage header { justify-content: space-between; }
 .provider-usage h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .provider-usage button { border: 0; border-radius: 6px; background: var(--v2-background-bg-layer-01); color: inherit; padding: 4px 8px; cursor: pointer; }
+.provider-usage .preferences { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.provider-usage select { color: inherit; background: var(--v2-background-bg-layer-01); border-radius: 6px; padding: 4px; }
 .provider-usage section { display: flex; flex-direction: column; gap: 6px; }
 .provider-usage .name { display: flex; justify-content: space-between; gap: 8px; }
 .provider-usage .detail, .provider-usage .when { color: var(--v2-text-text-muted); }
@@ -64,6 +67,11 @@ export default Plugin.define({
     const [snapshot, setSnapshot] = createSignal<Snapshot>()
     const [error, setError] = createSignal<string>()
     const [mode, setMode] = createSignal<DisplayMode>(loadMode())
+    const [language, setLanguage] = createSignal(loadPreference("language") === "en" ? "en" : "ru")
+    const [interval, setIntervalValue] = createSignal(validInterval(loadPreference("interval")))
+    const save = (key: string, value: string) => { try { localStorage.setItem(`provider-usage.${key}`, value) } catch {} }
+    const changeLanguage = (value: string) => { setLanguage(value === "en" ? "en" : "ru"); save("language", value) }
+    const changeInterval = (value: string) => { setIntervalValue(validInterval(value)); save("interval", value); void refresh(false) }
     let refreshing = false
     let disposed = false
 
@@ -81,7 +89,7 @@ export default Plugin.define({
       if (refreshing) return
       refreshing = true
       try {
-        const result = await ctx.client.rpc(Usage).snapshot({ fresh })
+        const result = await ctx.client.rpc(Usage).snapshot({ fresh, interval: interval() })
         if (disposed) return
         setSnapshot(result)
         setError()
@@ -95,7 +103,7 @@ export default Plugin.define({
     const tab: PanelTab = {
       id: "main",
       get title() {
-        return ctx.t("panel.title")
+        return translate("Лимиты Codex", language())
       },
       closable: "compact",
       fallback: true,
@@ -119,6 +127,10 @@ export default Plugin.define({
           mode={mode()}
           refresh={() => void refresh(true)}
           toggle={toggleMode}
+          language={language()}
+          interval={interval()}
+          changeLanguage={changeLanguage}
+          changeInterval={changeInterval}
         />
       ),
     })
@@ -154,6 +166,7 @@ export default Plugin.define({
           open={() => ctx.layout.open(`${ctx.id}:main`, input.session, { tab: "select" })}
           snapshot={snapshot}
           error={error}
+          language={language}
           mode={mode}
         />
       ),
@@ -172,6 +185,7 @@ function HeaderUsage(props: {
   open: () => void
   snapshot: () => Snapshot | undefined
   error: () => string | undefined
+  language: () => string
   mode: () => DisplayMode
 }) {
   const shown = () => {
@@ -180,17 +194,17 @@ function HeaderUsage(props: {
   }
   return (
     <div class="provider-usage-header" style={{ display: props.active() ? "flex" : "none" }}>
-      <button type="button" title={modeTitle(props.mode())} onClick={() => props.open()}>
+      <button type="button" title={translate(modeTitle(props.mode()), props.language())} onClick={() => props.open()}>
         {shown().length === 0 ? (
-          <span title={props.error() || props.snapshot()?.providers[0]?.detail || "Нет данных лимитов"}>Codex: нет данных</span>
+          <span title={translate(props.error() || props.snapshot()?.providers[0]?.detail || "Нет данных лимитов", props.language())}>{translate("Codex: нет данных", props.language())}</span>
         ) : (
           shown().map((row) => (
-            <span class={`meter ${row.stale ? "warn" : percentClass(row.usedPercent, "remaining")}`} title={(row.other ? `${meterTitle(row.other, row.stale)}\nСброс: ${formatReset(row.other.resetsAt)}` : "Других лимитов нет или данные недоступны") + (row.stale ? "\n! Не удалось обновить; показаны последние данные" : "")}>
+            <span class={`meter ${row.stale ? "warn" : percentClass(row.usedPercent, "remaining")}`} title={(row.other ? `${translate(meterTitle(row.other, row.stale), props.language())}\n${translate("Сброс", props.language())}: ${formatReset(row.other.resetsAt)}` : translate("Других лимитов нет или данные недоступны", props.language())) + (row.stale ? `\n${translate("! Не удалось обновить; показаны последние данные", props.language())}` : "")}>
               <svg viewBox="0 0 20 20" aria-hidden="true">
                 <circle class="track" cx="10" cy="10" r="8" stroke-width="3" />
                 <circle class="progress" cx="10" cy="10" r="8" stroke-width="3" pathLength="100" stroke-dasharray={`${shownPercent(row.usedPercent, "remaining")} 100`} />
               </svg>
-              <span class="meter-text"><span>{meterTitle(row, row.stale)}</span><span class="meter-reset">{formatReset(row.resetsAt)}</span></span>
+              <span class="meter-text"><span>{translate(meterTitle(row, row.stale), props.language())}</span><span class="meter-reset">{translate(formatReset(row.resetsAt), props.language())}</span></span>
             </span>
           ))
         )}
@@ -205,32 +219,40 @@ function UsageView(props: {
   mode: DisplayMode
   refresh: () => void
   toggle: () => void
+  language: string
+  interval: number
+  changeLanguage: (value: string) => void
+  changeInterval: (value: string) => void
 }) {
   return (
     <div class="provider-usage">
       <header>
-        <h2>Лимиты Codex</h2>
+        <h2>{translate("Лимиты Codex", props.language)}</h2>
         <div class="actions">
-          <button type="button" title="Переключить остаток и расход" onClick={() => props.toggle()}>
-            {props.mode === "remaining" ? "Показать использованное" : "Показать остаток"}
+          <button type="button" title={translate("Переключить остаток и расход", props.language)} onClick={() => props.toggle()}>
+            {translate(props.mode === "remaining" ? "Показать использованное" : "Показать остаток", props.language)}
           </button>
           <button type="button" onClick={() => props.refresh()}>
-            Обновить
+            {translate("Обновить", props.language)}
           </button>
         </div>
       </header>
-      <p class="detail">{props.error ?? "Codex"}</p>
+      <div class="preferences">
+        <label>{props.language === "en" ? "Language: " : "Язык: "}<select aria-label="Language / Язык" value={props.language} onChange={(event) => props.changeLanguage(event.currentTarget.value)}><option value="ru">Русский</option><option value="en">English</option></select></label>
+        <label>{props.language === "en" ? "Refresh interval: " : "Обновлять каждые: "}<select aria-label={props.language === "en" ? "Refresh interval" : "Интервал обновления"} value={String(props.interval)} onChange={(event) => props.changeInterval(event.currentTarget.value)}>{intervals.map((value) => <option value={String(value)}>{value === 30000 ? (props.language === "en" ? "30 seconds" : "30 секунд") : `${value / 60000} ${props.language === "en" ? "min" : "мин"}`}</option>)}</select></label>
+      </div>
+      <p class="detail">{translate(props.error ?? "Codex", props.language)}</p>
       {(props.snapshot?.providers ?? []).map((provider) => (
         <section>
           <div class="name">
             <strong>{provider.name}</strong>
-            <span class="detail">{provider.stale ? "! Последние данные: обновление не удалось" : status(provider)}</span>
+            <span class="detail">{translate(provider.stale ? "! Последние данные: обновление не удалось" : status(provider), props.language)}</span>
           </div>
           {provider.meters.map((meter) => (
             <div>
               <div class="name">
-                <span>{meter.label}</span>
-                <span class={percentClass(meter.usedPercent, props.mode)}>{percentText(meter.usedPercent, props.mode)}</span>
+                <span>{translate(meter.label, props.language)}</span>
+                <span class={percentClass(meter.usedPercent, props.mode)}>{translate(percentText(meter.usedPercent, props.mode), props.language)}</span>
               </div>
               <div class="bar">
                 <div
@@ -238,7 +260,7 @@ function UsageView(props: {
                   style={{ width: `${shownPercent(meter.usedPercent, props.mode)}%` }}
                 />
               </div>
-              <div class="when">{resetLabel(meter.resetsAt)}</div>
+              <div class="when">{translate(resetLabel(meter.resetsAt), props.language)}</div>
             </div>
           ))}
         </section>
@@ -291,6 +313,10 @@ function loadMode(): DisplayMode {
   } catch {
     return "used"
   }
+}
+
+function loadPreference(key: string) {
+  try { return localStorage.getItem(`provider-usage.${key}`) } catch { return null }
 }
 
 function shownPercent(usedPercent: number, mode: DisplayMode) {
