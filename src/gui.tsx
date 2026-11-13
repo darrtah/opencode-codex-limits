@@ -74,6 +74,9 @@ export default Plugin.define({
     const changeInterval = (value: string) => { setIntervalValue(validInterval(value)); save("interval", value); void refresh(false) }
     let refreshing = false
     let disposed = false
+    let generation = 0
+    let refreshQueued = false
+    const eventAbort = new AbortController()
 
     const toggleMode = () => {
       const next = mode() === "used" ? "remaining" : "used"
@@ -86,19 +89,35 @@ export default Plugin.define({
     }
 
     const refresh = async (fresh = false) => {
-      if (refreshing) return
+      if (refreshing) { if (fresh) refreshQueued = true; return }
       refreshing = true
+      const requestGeneration = generation
       try {
         const result = await ctx.client.rpc(Usage).snapshot({ fresh, interval: interval() })
-        if (disposed) return
+        if (disposed || requestGeneration !== generation) return
         setSnapshot(result)
         setError()
       } catch (cause) {
-        if (!disposed) setError("Не удалось обновить данные; повторная попытка через 30 секунд")
+        if (!disposed && requestGeneration === generation) setError("Не удалось обновить данные; повторная попытка через 30 секунд")
       } finally {
         refreshing = false
+        if (refreshQueued && !disposed) { refreshQueued = false; void refresh(true) }
       }
     }
+
+    void (async () => {
+      try {
+        for await (const event of ctx.client.event.subscribe({ types: ["credential.switched"], signal: eventAbort.signal })) {
+          if (event.type !== "credential.switched" || event.data.integrationID !== "openai") continue
+          generation++
+          setSnapshot(undefined)
+          setError("Аккаунт изменился; обновление данных")
+          void refresh(true)
+        }
+      } catch {
+        // Periodic polling remains available if the event stream disconnects.
+      }
+    })()
 
     const tab: PanelTab = {
       id: "main",
@@ -175,7 +194,7 @@ export default Plugin.define({
     ctx.add(Style, css)
     void refresh(false)
     const timer = setInterval(() => void refresh(false), 30_000)
-    return () => { disposed = true; clearInterval(timer) }
+    return () => { disposed = true; eventAbort.abort(); clearInterval(timer) }
   },
 })
 

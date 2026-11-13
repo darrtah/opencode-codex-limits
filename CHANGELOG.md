@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Refresh Codex limits automatically when the active OpenAI account changes.
+- Hide previous readings while refreshing and discard responses from earlier switches.
+
 ## 0.2.0
 
 - Russian / English language selector in the detail panel.
